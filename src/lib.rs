@@ -116,19 +116,36 @@ fn make_gui_expr(expr: &mut Expr, semi: bool, depth: usize) {
                 make_gui_expr(&mut arm.body, false, depth + 1);
             }
         }
+        // pub attrs: Vec<Attribute>,
+        // pub path: Path,
+        // pub brace_token: token::Brace,
+        // pub fields: Punctuated<FieldValue, Token![,]>,
+        // pub dot2_token: Option<Token![..]>,
+        // pub rest: Option<Box<Expr>>,
         Struct(expr_struct) => {
             // eprintln!("{}-type: Struct",lead_ws(depth));
             for field_value in expr_struct.fields.iter_mut() {
                 make_gui_expr(&mut field_value.expr, false, depth + 1);
             }
             if semi {
-                match syn::parse2::<Expr>(quote!(
-                    context.add_widget(&#expr_struct)
-                )) {
+                let path = &expr_struct.path;
+                let fields = &expr_struct.fields;
+                let dot2_token = &expr_struct.dot2_token;
+                let rest = &expr_struct.rest;
+
+                match syn::parse2::<Expr>(quote!(register_gui_element! { #path, context @
+
+                    #fields
+                    #dot2_token
+                    #rest
+
+                })) {
                     Ok(new_expr) => {
                         *expr = new_expr;
                     }
-                    _ => {}
+                    Err(e) => {
+                        eprintln!("Failed to parse modified syn tree e: {}", e);
+                    }
                 }
             }
         }
