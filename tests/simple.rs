@@ -132,7 +132,7 @@ fn example(context: &mut GuiContext, data: i32) {
 }
 
 #[glui::builder]
-fn tagged_function(context: &mut GuiContext, data: i32) {
+fn tagged_function(smth: &mut GuiContext, data: i32) {
     call(|| {
         Button {
             text: "Im smart too".to_owned(),
