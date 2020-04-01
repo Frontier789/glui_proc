@@ -4,24 +4,32 @@ trait Widget {
     fn on_create(&self) {}
 }
 
-struct GuiContext {}
+struct WidgetParser {}
 
-impl GuiContext {
-    fn open_widget<T>(&mut self, w: &T) -> bool
+impl WidgetParser {
+    fn open_widget<T>(w: &T)
     where
         T: Widget,
     {
+        // you can use thread_local here as self
         println!("A widget is opened");
         
         w.on_create();
-        
-        true
     }
-    fn close_widget<T>(&mut self, _w: &T)
+    fn close_widget<T>(_w: &T)
     where
         T: Widget,
     {
         println!("A widget is closed");
+    }
+    fn push_cache(cache_id: u64) {
+        println!("Pushed a new cache id: {}", cache_id);
+    }
+    fn pop_cache() {
+        println!("Popped the last cache id");
+    }
+    fn register_param<T>(param: &T) where T: std::fmt::Display {
+        println!("Registered param {}", param);
     }
 }
 
@@ -60,12 +68,12 @@ macro_rules! register_gui_element_struct_init {
     };
 }
 
-macro_rules! register_gui_element_children {
+macro_rules! register_gui_element_outer {
     ( children : $f:expr, $( $x:tt),* $(,)? ) => {
         $f
     };
     ( $field_c:ident : $value_c:expr, $( $field:ident : $value:expr),* $(,)? ) => {
-        register_gui_element_children! {
+        register_gui_element_outer! {
             $( $field : $value, )*
         }
     };
@@ -74,13 +82,15 @@ macro_rules! register_gui_element_children {
 }
 
 macro_rules! register_gui_element {
-    ($class:ident, $context:ident @ $( $x:tt )* ) => {
+    ($class:ident, $build_param:ty, $parser:ident @ $( $x:tt )* ) => {
         {
             let tmp = register_gui_element_struct_init! { $class {} @ $( $x )* };
-            if $context.open_widget(&tmp) {
-                register_gui_element_children! { $( $x )* }
-            }
-            $context.close_widget(&tmp);
+            
+            $parser::open_widget(&tmp);
+            
+            register_gui_element_outer! { $( $x )* }
+            
+            $parser::close_widget(&tmp);
         }
     };
 }
@@ -102,37 +112,12 @@ where
     f();
 }
 
-fn example(context: &mut GuiContext, data: i32) {
-    call(|| {
-        register_gui_element! { Button, context @
-            text: "Im smart too".to_owned(),
-        };
-    });
-    register_gui_element! { Layout, context @
-        height: 200,
-        children: {
-            for i in 1..6 {
-                register_gui_element! { Button, context @
-                    text: format!("{}", i),
-                };
-            }
-        },
-    };
-    register_gui_element! { Layout, context @
-        height: 400,
-        children: {
-            register_gui_element! { Button, context @
-                text: format!("A_{}", data),
-            };
-            register_gui_element! { Button, context @
-                text: format!("B_{}", data),
-            };
-        }
-    };
-}
+struct Data {}
 
-#[glui::builder]
-fn tagged_function(smth: &mut GuiContext, data: i32) {
+impl Data {}
+
+#[glui::builder(Data)]
+fn tagged_function(data: i32) {
     call(|| {
         Button {
             text: "Im smart too".to_owned(),
@@ -142,9 +127,7 @@ fn tagged_function(smth: &mut GuiContext, data: i32) {
         height: 200,
         children: {
             for i in 1..6 {
-                Button {
-                    text: format!("{}", i),
-                };
+                button_builder(format!("button text is {}", i));
             }
         },
     };
@@ -161,7 +144,14 @@ fn tagged_function(smth: &mut GuiContext, data: i32) {
     };
 }
 
+#[glui::builder(Data)]
+fn button_builder(text: String) {
+    Button {
+        text: text,
+    };
+}
+
 #[test]
 fn do_test() {
-    tagged_function(&mut GuiContext {}, 1);
+    tagged_function(1);
 }
