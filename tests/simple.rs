@@ -145,10 +145,26 @@ fn tagged_function(data: i32) {
 }
 
 #[glui::builder(Data)]
+fn different_hash_for_moduled(data: i32) {
+    button_builder(format!("{}",data));
+    asd::button_builder(format!("{}",data*2));
+}
+
+#[glui::builder(Data)]
 fn button_builder(text: String) {
     Button {
         text: text,
     };
+}
+
+mod asd {
+    use super::*;
+    #[glui::builder(Data)]
+    pub fn button_builder(text: String) {
+        Button {
+            text: text,
+        };
+    }
 }
 
 #[test]

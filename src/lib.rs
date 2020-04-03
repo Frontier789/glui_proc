@@ -48,7 +48,7 @@ pub fn builder(attr: TokenStream, item: TokenStream) -> TokenStream {
     funsyn_tree.block.stmts = [
         vec![syn::parse2::<Stmt>(
             ("WidgetParser::push_cache(".to_owned()
-                + &format!("{}", calculate_hash(&funsyn_tree.sig.ident))
+                + &format!("{}", calculate_hash(&funsyn_tree.sig))
                 + ");")
                 .parse()
                 .unwrap(),
