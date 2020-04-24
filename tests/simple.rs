@@ -82,7 +82,7 @@ macro_rules! register_gui_element_outer {
 }
 
 macro_rules! register_gui_element {
-    ($class:ident, $build_param:ty, $parser:ident @ $( $x:tt )* ) => {
+    ($class:ident, $build_param:ty, $sender:ty, $parser:ident @ $( $x:tt )* ) => {
         {
             let tmp = register_gui_element_struct_init! { $class {} @ $( $x )* };
             
@@ -165,6 +165,17 @@ mod asd {
             text: text,
         };
     }
+}
+
+trait Component {
+    fn clone(&self) -> Self;
+}
+
+use glui::Component;
+
+#[derive(Component)]
+struct A {
+    id: i32
 }
 
 #[test]

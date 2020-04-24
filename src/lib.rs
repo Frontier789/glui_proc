@@ -2,9 +2,11 @@ extern crate proc_macro;
 extern crate syn;
 use proc_macro::TokenStream;
 use quote::quote;
+use quote::quote_spanned;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use syn::export::*;
+use syn::spanned::Spanned;
 use syn::Block;
 use syn::Expr;
 use syn::Expr::*;
@@ -42,9 +44,12 @@ pub fn builder(attr: TokenStream, item: TokenStream) -> TokenStream {
             .unwrap()
         })
         .collect::<Vec<Stmt>>();
-    
-    MacroWrapper { depth:0, build_data_type }.block(&mut funsyn_tree.block);
-    
+
+    MacroWrapper {
+        depth: 0,
+        build_data_type,
+    }
+    .block(&mut funsyn_tree.block);
     funsyn_tree.block.stmts = [
         vec![syn::parse2::<Stmt>(
             ("WidgetParser::push_cache(".to_owned()
@@ -65,7 +70,6 @@ pub fn builder(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
-
 struct MacroWrapper {
     depth: usize,
     build_data_type: syn::Type,
@@ -76,8 +80,8 @@ impl MacroWrapper {
     fn lead_ws(&self) -> String {
         String::from_utf8(vec![b' '; self.depth]).unwrap()
     }
-    
-    fn block(&mut self,block: &mut Block) {
+
+    fn block(&mut self, block: &mut Block) {
         self.depth += 1;
         // eprintln!("{}block>",self.lead_ws());
         for stmt in block.stmts.iter_mut() {
@@ -86,7 +90,7 @@ impl MacroWrapper {
         // eprintln!("{}block<",self.lead_ws());
     }
 
-    fn stmt(&mut self,stmt: &mut Stmt) {
+    fn stmt(&mut self, stmt: &mut Stmt) {
         self.depth += 1;
         // eprint!("{}stmt>",self.lead_ws());
         match stmt {
@@ -109,7 +113,7 @@ impl MacroWrapper {
         // eprintln!("{}stmt<",self.lead_ws());
     }
 
-    fn expr(&mut self,expr: &mut Expr, semi: bool) {
+    fn expr(&mut self, expr: &mut Expr, semi: bool) {
         self.depth += 1;
         // eprint!("{}expr>",self.lead_ws());
         match expr {
@@ -151,10 +155,7 @@ impl MacroWrapper {
                 // eprintln!("{}-type: If",self.lead_ws());
                 self.block(&mut expr_if.then_branch);
                 if expr_if.else_branch != None {
-                    self.expr(
-                        &mut expr_if.else_branch.as_mut().unwrap().1,
-                        false,
-                    );
+                    self.expr(&mut expr_if.else_branch.as_mut().unwrap().1, false);
                 }
             }
             Let(expr_let) => {
@@ -189,13 +190,15 @@ impl MacroWrapper {
                     let rest = &expr_struct.rest;
                     let build_data_type = self.build_data_type.clone();
 
-                    match syn::parse2::<Expr>(quote!(register_gui_element! { #path, #build_data_type, WidgetParser @
+                    match syn::parse2::<Expr>(quote!(
+                        register_gui_element! { #path, #build_data_type, PostBox, WidgetParser @
 
-                        #fields
-                        #dot2_token
-                        #rest
+                            #fields
+                            #dot2_token
+                            #rest
 
-                    })) {
+                        }
+                    )) {
                         Ok(new_expr) => {
                             *expr = new_expr;
                         }
@@ -216,5 +219,56 @@ impl MacroWrapper {
             _ => {}
         }
         // eprintln!("{}expr<",self.lead_ws());
+    }
+}
+
+#[proc_macro_derive(Component)]
+pub fn derive_component(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    let name = &input.ident;
+    
+    let cloner = clone_members(&input.data);
+    
+    proc_macro::TokenStream::from(quote! {
+        impl Component for #name {
+            fn clone(&self) -> Self {
+                Self {
+                    #cloner
+                }
+            }
+        }
+    })
+}
+
+fn clone_members(data: &syn::Data) -> TokenStream2 {
+    match *data {
+        syn::Data::Struct(ref data) => {
+            match data.fields {
+                syn::Fields::Named(ref fields) => {
+                    let recurse = fields.named.iter().map(|f| {
+                        let name = &f.ident;
+                        quote_spanned! { f.span() =>
+                            #name: self.#name.clone()
+                        }
+                    });
+                    quote! {
+                        #(#recurse, )*
+                    }
+                }
+                syn::Fields::Unnamed(ref fields) => {
+                    let recurse = fields.unnamed.iter().enumerate().map(|(i, f)| {
+                        let index = syn::Index::from(i);
+                        quote_spanned! { f.span() =>
+                            heapsize::HeapSize::heap_size_of_children(&self.#index)
+                        }
+                    });
+                    quote! {
+                        #(#recurse, )*
+                    }
+                }
+                syn::Fields::Unit => unimplemented!(),
+            }
+        }
+        syn::Data::Enum(_) | syn::Data::Union(_) => unimplemented!(),
     }
 }
