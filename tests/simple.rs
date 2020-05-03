@@ -1,184 +1,178 @@
-#![allow(dead_code)]
+use std::fmt::Debug;
+use std::ops::Neg;
+use std::ops::Shr;
 
-trait Widget {
-    fn on_create(&self) {}
-}
+trait Widget: Debug {}
 
 struct WidgetParser {}
 
 impl WidgetParser {
+    fn doprint() -> bool { false }
     fn open_widget<T>(w: &T)
-    where
-        T: Widget,
+        where
+            T: Widget,
     {
         // you can use thread_local here as self
-        println!("A widget is opened");
-        
-        w.on_create();
+        if Self::doprint() { println!("A widget is opened"); }
     }
     fn close_widget<T>(_w: &T)
-    where
-        T: Widget,
+        where
+            T: Widget,
     {
-        println!("A widget is closed");
+        if Self::doprint() { println!("A widget is closed"); }
     }
-    fn push_cache(cache_id: u64) {
-        println!("Pushed a new cache id: {}", cache_id);
+    fn enter_builder(cache_id: u64) {
+        if Self::doprint() { println!("Entered a new builder, id: {}", cache_id); };
     }
-    fn pop_cache() {
-        println!("Popped the last cache id");
+    fn leave_builder() {
+        if Self::doprint() { println!("Left the last builder"); }
     }
-    fn register_param<T>(param: &T) where T: std::fmt::Display {
-        println!("Registered param {}", param);
+    fn register_param<T>(param: &T)
+        where
+            T: std::fmt::Debug,
+    {
+        if Self::doprint() { println!("Registered param {:?}", param); };
     }
 }
 
+#[derive(Debug)]
+struct WidgetAdder {}
+
+impl WidgetAdder {
+    pub fn new() -> WidgetAdder {
+        // println!("-- children =>");
+        WidgetAdder {}
+    }
+}
+
+impl Drop for WidgetAdder {
+    fn drop(&mut self) {
+        println!("< children --")
+    }
+}
+
+impl Shr<()> for WidgetAdder {
+    type Output = ();
+
+    fn shr(self, _rhs: ()) -> Self::Output {
+        ()
+    }
+}
+
+#[derive(Debug)]
+struct WidgetAdderLeaf {}
+
+impl Drop for WidgetAdderLeaf {
+    fn drop(&mut self) {
+        println!("< children --")
+    }
+}
+
+impl Shr<()> for WidgetAdderLeaf {
+    type Output = WidgetAdderLeaf;
+
+    fn shr(self, _rhs: ()) -> Self::Output {
+        self
+    }
+}
+
+impl Shr<WidgetAdder> for WidgetAdder {
+    type Output = WidgetAdderLeaf;
+
+    fn shr(self, _rhs: WidgetAdder) -> Self::Output {
+        WidgetAdderLeaf{}
+    }
+}
+
+macro_rules! impl_widget {
+    ($t:ty) => {
+        impl Neg for $t {
+            type Output = WidgetAdder;
+        
+            fn neg(self) -> Self::Output {
+                println!("Constructed {:?}", self);
+                WidgetAdder::new()
+            }
+        }
+        
+        impl Widget for $t {}
+    }
+}
+
+#[derive(Debug)]
 struct Layout {
-    height: usize,
+    height: f32,
 }
+impl_widget!(Layout);
 
-impl Widget for Layout {
-    fn on_create(&self) {
-        println!("A layout of height {} is created", self.height);
-    }
-}
-
-macro_rules! register_gui_element_struct_init {
-    ( $class:ident { $( $field_in:ident : $value_in:expr ),* } @ ) => {
-        $class {
-            $( $field_in : $value_in ),*
-        }
-    };
-    ( $class:ident { $( $field_in:ident : $value_in:expr ),* } @ children : $value_c:block $(, $field:ident : $value:expr )* $(,)? ) => {
-        register_gui_element_struct_init! (
-            $class { $( $field_in : $value_in ),* } @
-            $( $field:ident : $value:expr ),*
-        )
-    };
-    ( $class:ident { $( $field_in:ident : $value_in:expr ),* } @ $field_c:ident : $value_c:expr , $( $rest:tt )* ) => {
-        register_gui_element_struct_init! (
-            $class { $( $field_in : $value_in ),* $field_c : $value_c } @
-            $( $rest )*
-        )
-    };
-    ( $class:ident { $( $field_in:ident : $value_in:expr ),* } @ $field_c:ident : $value_c:expr ) => {
-        register_gui_element_struct_init! (
-            $class { $( $field_in : $value_in ),* $field_c : $value_c } @
-        )
-    };
-}
-
-macro_rules! register_gui_element_outer {
-    ( children : $f:expr, $( $x:tt),* $(,)? ) => {
-        $f
-    };
-    ( $field_c:ident : $value_c:expr, $( $field:ident : $value:expr),* $(,)? ) => {
-        register_gui_element_outer! {
-            $( $field : $value, )*
-        }
-    };
-    ( $( $field:ident : $value:expr),* $(,)? ) => {
-    }
-}
-
-macro_rules! register_gui_element {
-    ($class:ident, $build_param:ty, $sender:ty, $parser:ident @ $( $x:tt )* ) => {
-        {
-            let tmp = register_gui_element_struct_init! { $class {} @ $( $x )* };
-            
-            $parser::open_widget(&tmp);
-            
-            register_gui_element_outer! { $( $x )* }
-            
-            $parser::close_widget(&tmp);
-        }
-    };
-}
-
+#[derive(Debug)]
 struct Button {
     text: String,
 }
-
-impl Widget for Button {
-    fn on_create(&self) {
-        println!("A button with text \"{}\" is created", self.text);
-    }
-}
+impl_widget!(Button);
 
 fn call<T>(mut f: T)
-where
-    T: FnMut() -> (),
+    where
+        T: FnMut() -> (),
 {
     f();
 }
 
-struct Data {}
+#[derive(Debug)]
+struct UIExperiment {
+    data: i32,
+}
 
-impl Data {}
+trait UIBuilder {
+    fn build(&self);
+}
 
-#[glui::builder(Data)]
-fn tagged_function(data: i32) {
-    call(|| {
-        Button {
-            text: "Im smart too".to_owned(),
+impl UIBuilder for UIExperiment {
+    #[glui_proc::cache]
+    fn build(&self) {
+        call(|| {
+            -Button {
+                text: "Imma button inna call".to_owned(),
+            };
+        });
+
+        -Layout {
+            height: 200.0,
+        } >> for i in 1..6 {
+            button_builder(format!("button text is {}", i));
         };
-    });
-    Layout {
-        height: 200,
-        children: {
-            for i in 1..6 {
-                button_builder(format!("button text is {}", i));
-            }
-        },
-    };
-    Layout {
-        height: 400,
-        children: {
-            Button {
-                text: format!("A_{}", data),
+
+        -Layout {
+            height: 400.0,
+        } >> {
+            -Button {
+                text: format!("A_{}", self.data),
             };
-            Button {
-                text: format!("B_{}", data),
+            -Button {
+                text: format!("B_{}", self.data),
             };
-        }
-    };
-}
+        };
 
-#[glui::builder(Data)]
-fn different_hash_for_moduled(data: i32) {
-    button_builder(format!("{}",data));
-    asd::button_builder(format!("{}",data*2));
-}
-
-#[glui::builder(Data)]
-fn button_builder(text: String) {
-    Button {
-        text: text,
-    };
-}
-
-mod asd {
-    use super::*;
-    #[glui::builder(Data)]
-    pub fn button_builder(text: String) {
-        Button {
-            text: text,
+        -Layout {
+            height: 100.0,
+        } >> {
+            -Layout {
+                height: 200.0,
+            } >> -Button {
+                text: format!("A_{}", self.data),
+            };
         };
     }
 }
 
-trait Component {
-    fn clone(&self) -> Self;
-}
-
-use glui::Component;
-
-#[derive(Component)]
-struct A {
-    id: i32
+#[glui_proc::cache]
+fn button_builder(text: String) {
+    -Button { text };
 }
 
 #[test]
 fn do_test() {
-    tagged_function(1);
+    let builder = UIExperiment { data: 5 };
+
+    builder.build();
 }
