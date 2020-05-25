@@ -14,11 +14,12 @@ use std::hash::{Hash, Hasher};
 use syn::export::*;
 use syn::FnArg;
 use syn::Pat;
-use syn::spanned::Spanned;
 use syn::Stmt;
 
 use quote::quote;
-use quote::quote_spanned;
+
+// use syn::spanned::Spanned;
+// use quote::quote_spanned;
 
 fn calculate_hash<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
@@ -50,7 +51,7 @@ pub fn cache(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     .parse()
                     .unwrap(),
             )
-                .unwrap()
+            .unwrap()
         })
         .collect::<Vec<Stmt>>();
 
@@ -62,16 +63,16 @@ pub fn cache(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 .parse()
                 .unwrap(),
         )
-            .unwrap()],
+        .unwrap()],
         param_registrator,
         funsyn_tree.block.stmts,
         vec![syn::parse2::<Stmt>(("WidgetParser::leave_builder();").parse().unwrap()).unwrap()],
     ]
-        .concat();
+    .concat();
     quote!(
         #funsyn_tree
     )
-        .into()
+    .into()
 }
 
 // struct MacroWrapper {
@@ -186,15 +187,15 @@ pub fn cache(_attr: TokenStream, item: TokenStream) -> TokenStream {
 //                 // eprintln!("{}-type: Struct",self.lead_ws());
 //                 for field_value in expr_struct.fields.iter_mut() {
 //                     let mut parse_as_expr = true;
-//                    
+//
 //                     if let Member::Named(ident) = &field_value.member {
 //                         if ident.to_string() == "child".to_owned() {
 //                             parse_as_expr = false;
 //                             field_value.member = Member::Named(Ident::new("children", ident.span()));
-//                            
+//
 //                             let expr = &mut field_value.expr;
 //                             self.expr(expr, true);
-//                            
+//
 //                             match syn::parse2::<Expr>(quote!(
 //                                 {
 //                                     #expr;
@@ -207,11 +208,11 @@ pub fn cache(_attr: TokenStream, item: TokenStream) -> TokenStream {
 //                                     eprintln!("Failed to parse child -> chilren syn tree modification, e: {}", e);
 //                                 }
 //                             };
-//                            
+//
 //                             // eprintln!("Found child member: {:?}", field_value);
 //                         }
 //                     }
-//                    
+//
 //                     if parse_as_expr {
 //                         self.expr(&mut field_value.expr, false);
 //                     }
@@ -255,42 +256,50 @@ pub fn cache(_attr: TokenStream, item: TokenStream) -> TokenStream {
 //     }
 // }
 
+#[proc_macro_derive(System)]
+pub fn derive_system(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    let name = &input.ident;
+
+    proc_macro::TokenStream::from(quote! {
+        impl System for #name {}
+    })
+}
+
 #[proc_macro_derive(Component)]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     let name = &input.ident;
 
-    let cloner = clone_members(&input.data);
+    // let cloner = clone_members(&input.data);
 
     proc_macro::TokenStream::from(quote! {
         impl Component for #name {
-            fn clone(&self) -> Self {
-                Self {
-                    #cloner
-                }
-            }
+            // fn clone(&self) -> Self {
+            //     Self {
+            //         #cloner
+            //     }
+            // }
         }
     })
 }
 
-fn clone_members(data: &syn::Data) -> TokenStream2 {
-    match *data {
-        syn::Data::Struct(ref data) => {
-            match data.fields {
-                syn::Fields::Named(ref fields) => {
-                    let recurse = fields.named.iter().map(|f| {
-                        let name = &f.ident;
-                        quote_spanned! { f.span() =>
-                            #name: self.#name.clone()
-                        }
-                    });
-                    quote! {
-                        #(#recurse, )*
-                    }
-                }
-                _ => unimplemented!(),
-            }
-        }
-        syn::Data::Enum(_) | syn::Data::Union(_) => unimplemented!(),
-    }
-}
+// fn clone_members(data: &syn::Data) -> TokenStream2 {
+//     match *data {
+//         syn::Data::Struct(ref data) => match data.fields {
+//             syn::Fields::Named(ref fields) => {
+//                 let recurse = fields.named.iter().map(|f| {
+//                     let name = &f.ident;
+//                     quote_spanned! { f.span() =>
+//                         #name: self.#name.clone()
+//                     }
+//                 });
+//                 quote! {
+//                     #(#recurse, )*
+//                 }
+//             }
+//             _ => unimplemented!(),
+//         },
+//         syn::Data::Enum(_) | syn::Data::Union(_) => unimplemented!(),
+//     }
+// }
