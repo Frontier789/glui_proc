@@ -266,6 +266,16 @@ pub fn derive_system(input: TokenStream) -> TokenStream {
     })
 }
 
+#[proc_macro_derive(Message)]
+pub fn derive_message(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as syn::DeriveInput);
+    let name = &input.ident;
+
+    proc_macro::TokenStream::from(quote! {
+        impl Message for #name {}
+    })
+}
+
 #[proc_macro_derive(Component)]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
