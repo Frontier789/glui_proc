@@ -11,7 +11,7 @@ use std::hash::{Hash, Hasher};
 // use syn::Ident;
 // use syn::Member;
 
-use syn::export::*;
+// use syn::export::*;
 use syn::FnArg;
 use syn::Pat;
 use syn::Stmt;
